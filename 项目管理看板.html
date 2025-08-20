@@ -1,0 +1,1037 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>项目管理看板</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com/">
+    <link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin="">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #f8f9fa; --text-color: #1f2937; --border-color: #e5e7eb;
+            --header-bg: #f3f4f6; --hover-bg: #f9fafb; --primary-color: #3b82f6;
+            --btn-ai-color: #3b82f6; --btn-config-color: #8b5cf6;
+            --btn-export-color: #10b981; --btn-import-color: #6b7280;
+        }
+        body { font-family: 'Inter', sans-serif; margin: 0; padding: 4rem 10rem; background-color: var(--bg-color); color: var(--text-color); font-size: 14px; user-select: none; }
+        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 3rem; }
+        header h1 { margin: 0; font-weight: 600; color: #111827; letter-spacing: 1.25px; }
+        .controls { display: flex; align-items: center; gap: 1.25rem; margin-right: 2rem; }
+        .controls .header-btn {
+            display: inline-flex; align-items: center; justify-content: center;
+            border-radius: 8px; font-weight: 500; font-size: 14px;
+            height: 40px; padding: 0; border: none;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1);
+            cursor: pointer; transition: all 0.2s ease-in-out;
+            overflow: hidden; color: white;
+        }
+        .controls .header-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1); }
+        .controls .btn-text { padding: 0 0.75rem 0 1rem; letter-spacing: 0.5px; }
+        .controls .btn-icon {
+            width: 40px; height: 100%; display: flex;
+            align-items: center; justify-content: center;
+            background-color: rgba(0,0,0,0.15);
+        }
+        #ai-create-btn { background-color: var(--btn-ai-color); }
+        #config-btn { background-color: var(--btn-config-color); }
+        #export-btn { background-color: var(--btn-export-color); }
+        #import-btn { background-color: var(--btn-import-color); }
+
+        .project-table-wrapper { overflow-x: auto; border: 1px solid var(--border-color); border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05); background-color: white; }
+        .project-table { min-width: 1400px; background-color: white; border-collapse: collapse; width: 100%;}
+        .project-row, .project-header-row { display: grid; align-items: center; border-bottom: 1px solid var(--border-color); min-height: 58px; }
+        .project-table .project-row:last-child { border-bottom: none; }
+        .project-header-row { 
+            color: #374151;
+            background-color: var(--header-bg); 
+            position: sticky; top: 0; z-index: 20; 
+            font-size: 14px; font-weight: 600;
+            border-bottom: 2px solid #dde1e6;
+        }
+        .cell, .header-cell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 1rem 1rem; position: relative; border-right: 1px solid var(--border-color); min-width: 30px; }
+        .cell[data-key="status"] { text-align: left; }
+        .cell[data-key="startDate"], .cell[data-key="updatedAt"], .cell[data-key="industry"], .header-cell[data-key="startDate"], .header-cell[data-key="updatedAt"], .header-cell[data-key="industry"] { text-align: center; justify-content: center; }        .cell:last-child, .header-cell:last-child { border-right: none; }
+        
+        .action-cell, .header-cell[data-key="actions"] { position: sticky; right: 0; z-index: 15; border-left: 1px solid var(--border-color); }
+        .header-cell[data-key="actions"] { background-color: var(--header-bg); justify-content: center; }
+        .project-row:hover .action-cell { background-color: var(--hover-bg); }
+        .project-row[data-status="初步接触"]:hover .action-cell { background-color: #eef4ff; }
+        .project-row[data-status="正在推进"]:hover .action-cell { background-color: #fef7d9; }
+        .project-row[data-status="顺利完成"]:hover .action-cell { background-color: #eef8f2; }
+        .project-row[data-status="已经放弃"]:hover .action-cell { background-color: #f5f5f5; }
+
+        .header-cell { 
+            cursor: grab; 
+            display: flex; 
+            align-items: center; 
+            gap: 8px; 
+            font-variant-emoji: emoji;
+        }
+        .header-cell[data-key="序号"], .drag-handle-cell, .header-cell[data-key="actions"] { justify-content: center; }
+
+        .header-cell[data-key="name"] {
+            padding-left: 1.75rem;
+        }
+        
+        .header-icon-svg {
+            width: 16px;
+            height: 16px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            flex-shrink: 0;
+        }
+        .cell { cursor: pointer; }
+        .cell[data-key="name"], .cell[data-key="updatedAt"] { cursor: default; }
+        .cell-name-span { cursor: pointer; font-weight: 500; color: #111827; }
+/* 为"项目名称"的内容单元格增加左内边距，使其与表头对齐更美观 */
+        .cell[data-key="name"] {
+            padding-left: 1.75rem;
+        }
+        
+        .project-row[data-status="已经放弃"] .cell-name-span { color: inherit; }
+        .attachment-pill { background-color: var(--header-bg); padding: 3px 8px; border-radius: 4px; margin-right: 6px; margin-bottom: 4px; display: inline-block; border: 1px solid var(--border-color); cursor: pointer; }
+        .attachment-pill:hover { border-color: var(--primary-color); }
+        .resize-handle { position: absolute; top: 0; right: -5px; bottom: 0; width: 10px; cursor: col-resize; z-index: 30; }
+        .resize-handle:hover { background-color: var(--primary-color); }
+        .header-cell.dragging { opacity: 0.5; background: #e0e0e0; }
+        .drag-over-highlight { border-left: 3px solid var(--primary-color); }
+        .pill { padding: 3px 12px; font-size: 12px; font-weight: 500; display: inline-block; line-height: 1.5; vertical-align: middle; cursor: pointer; border-radius: 999px; }
+        .pill.pill-property { border-radius: 4px; }
+        .pill[data-value="尚未开始"] { background-color: #f3f4f6; color: #4b5563; }
+        .pill[data-value="初步接触"] { background-color: #e0f2fe; color: #075985; }
+        .pill[data-value="正在推进"] { background-color: #fef9c3; color: #854d0e; }
+        .pill[data-value="顺利完成"] { background-color: #dcfce7; color: #166534; }
+        .pill[data-value="已经放弃"] { background-color: #e5e7eb; color: #4b5563; }
+        .pill[data-value="股权"] { background-color: #ccfbf1; color: #0f766e; }
+        .pill[data-value="并购"] { background-color: #ede9fe; color: #5b21b6; }
+        .pill[data-value="不良"] { background-color: #ffedd5; color: #c2410c; }
+        .project-row:hover { background-color: var(--hover-bg); }
+        .project-row[data-status="初步接触"] { background-color: #f5f8ff; }
+        .project-row[data-status="初步接触"]:hover { background-color: #eef4ff; }
+        .project-row[data-status="正在推进"] { background-color: #fffbeb; }
+        .project-row[data-status="正在推进"]:hover { background-color: #fef7d9; }
+        .project-row[data-status="顺利完成"] { background-color: #f6fbf8; }
+        .project-row[data-status="顺利完成"]:hover { background-color: #eef8f2; }
+        .project-row[data-status="已经放弃"] { background-color: #fafafa; color: #9ca3af; }
+        .project-row[data-status="已经放弃"]:hover { background-color: #f5f5f5; }
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.25); justify-content: center; align-items: center; }
+        .modal-content { background-color: white; padding: 2rem; border-radius: 8px; width: 90%; max-width: 600px; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+        #project-form-fields { display: grid; grid-template-columns: 100px 1fr; gap: 1.5rem; align-items: center; margin-top: 3.5rem;}
+        #project-form-fields label { font-weight: 500; }
+        #project-form-fields input, #project-form-fields select, #project-form-fields textarea { width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px; box-sizing: border-box; font-family: 'Inter', sans-serif; font-size: 14px; }
+        #project-form-fields select { padding-right: 25px; }
+        .modal-actions { margin-top: 1.5rem; display: flex; justify-content: flex-end; gap: 1rem; }
+        #summary-modal-content { padding: 1.5rem 2rem; }
+        #summary-title { font-size: 1.1rem; font-weight: 600; color: #111827; margin-top: 0; margin-bottom: 0.75rem; }
+        #summary-text-container { margin-top: 1rem; }
+        .action-cell { text-align: center; background-color: white;} 
+        .edit-btn { background:none; border:none; cursor:pointer; font-size: 1rem; color: #9ca3af; padding: 4px; vertical-align: middle; border-radius: 4px; transition: all 0.2s;}
+        .edit-btn:hover { color: #374151; background-color: #e5e7eb; }
+        .bottom-controls-container { padding-top: 1rem; display: flex; justify-content: space-between; align-items: center; }
+        .add-project-btn, .api-key-btn { color: #6b7280; padding: 0.5rem; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; border-radius: 6px; }
+        .add-project-btn:hover, .api-key-btn:hover { background-color: var(--hover-bg); color: #1f2937; }
+        .inline-editor { position: absolute; top: 2px; left: 2px; right: 2px; bottom: 2px; z-index: 10; }
+        .inline-editor input, .inline-editor select { width: 100%; height: 100%; border: 2px solid var(--primary-color); border-radius: 3px; font-size: 14px; box-sizing: border-box; font-family: 'Inter', sans-serif; }
+        .header-icon { width: 16px; height: 16px; fill: white; }
+        #config-modal .modal-content h2 { margin-bottom: 2rem; padding-bottom: 0; border-bottom: none; }
+        #config-modal .modal-actions { margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color); }
+        #config-form-fields { display: flex; flex-direction: column; gap: 1rem; padding-top: 2rem; padding-bottom: 1rem; padding-left: 2rem; padding-right: 1rem; }
+        .config-row { display: grid; grid-template-columns: 1fr 60px; align-items: center; }
+        .config-row label { display: flex; align-items: center; gap: 12px; }
+        .drag-handle-cell { cursor: grab; display: flex; align-items: center; justify-content: center; color: #6b7280; font-weight: 500; font-variant-numeric: tabular-nums; }
+        .project-row.row-dragging { opacity: 0.5; background: #eef2ff; }
+        .project-row.drag-over-top { border-top: 2px solid var(--primary-color); }
+        #summary-text { font-size: 14px; white-space: pre-wrap; word-wrap: break-word; line-height: 1.7; user-select: text; }
+        #ai-upload-modal h3, #summary-text h3 { font-size: 16px; font-weight: 600; color: #111827; margin-top: 1.5rem; margin-bottom: 0.5rem; }
+        #summary-text h3:first-child { margin-top: 0; }
+        #ai-upload-modal p, #summary-text p { margin: 0.5rem 0; line-height: 1.6; }
+        #ai-upload-modal p { margin-bottom: 5rem; }
+        .table-container { position: relative; margin-top: 2em; margin-bottom: 1rem; }
+        .table-container::after { position: absolute; top: -1.7em; right: 0; font-size: 12px; font-style: italic; color: #6b7280; }
+        #summary-text table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
+        #summary-text th, #summary-text td { border: 1px solid var(--border-color); padding: 8px 10px; text-align: left; white-space: normal; word-wrap: break-word; }
+        #summary-text th { background-color: var(--header-bg); font-weight: 600; }
+        #summary-text strong { font-weight: 600; }
+    
+        .progress-log-btn { cursor: pointer; margin-left: 8px; padding: 2px; border-radius: 4px; transition: opacity 0.2s; vertical-align: middle; display: inline-flex; align-items: center; opacity: 0; color: #6b7280; }
+        .project-row:hover .progress-log-btn { opacity: 1; }
+        .progress-log-btn:hover { background-color: #e5e7eb; color: #1f2937; }
+        .progress-log-entry {position: relative; border-bottom: 1px solid var(--border-color); padding: 1rem 1rem 1rem 0; cursor: grab; }
+        .progress-log-entry:last-child { border-bottom: none; padding-bottom: 0; }
+        .progress-log-entry:first-child { padding-top: 0; }
+        .progress-log-entry.log-dragging { opacity: 0.5; background: #eef2ff; }
+        .progress-log-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+        .progress-log-meta-left { display: flex; align-items: center; gap: 0.6rem; }
+        .progress-log-index {
+            font-size: 1em;
+            font-weight: 600;
+            color: var(--primary-color);
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #eef2ff;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .progress-log-title-editable {
+            font-size: 1.05em;
+            font-weight: 600;
+            color: #111827;
+            cursor: pointer;
+        }
+        .progress-log-meta-right { font-size: 12px; color: #6b7280; }
+        .progress-log-note {
+            font-size: 14px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            margin-top: 0.5rem;
+            color: #374151; 
+            cursor: pointer;
+            padding-left: 34px; 
+            padding-right: 20px;
+            text-align: justify; /*两端对齐*/
+        }
+        .log-title-edit-input, .log-date-edit-input { font-size: 14px; font-weight: 500; border: 1px solid var(--primary-color); border-radius: 4px; padding: 2px 4px; }
+        .log-date-editable { cursor: pointer; color: #9ca3af; }
+        .log-date-editable:hover { border-bottom-color: #a5b4fc; }
+
+        .log-edit-textarea { width: 100%; box-sizing: border-box; font-family: 'Inter', sans-serif; font-size: 14px; padding: 0.5rem; border: 1px solid var(--primary-color); border-radius: 4px; margin-bottom: 0.5rem; resize: none; overflow: hidden; }
+        .log-edit-actions { display: flex; justify-content: flex-end; gap: 0.5rem; }
+        .log-edit-actions button { border: none; padding: 0.3rem 0.8rem; border-radius: 4px; font-weight: 500; cursor: pointer; }
+        .log-edit-actions .log-save-btn { background-color: var(--primary-color); color: white; }
+        .log-edit-actions .log-cancel-btn { background-color: #e5e7eb; color: #4b5563; }
+        #progress-log-form { margin-top: 2rem; }
+        #progress-log-form > label { margin-bottom: 1rem; }
+        #progress-modal-title { margin-bottom: 2rem !important; }
+
+        #ai-upload-modal .modal-content { max-width: 720px; }
+        #ai-upload-modal .ai-config-section { 
+            margin-top: 3rem; 
+            padding-left: 2rem;
+            display: flex; 
+            flex-direction: column; 
+            gap: 0.5rem;
+        }
+        #ai-upload-modal .config-item { display: flex; align-items: center; }
+        #ai-upload-modal .config-label { font-weight: 600; color: #374151; width: 120px; flex-shrink: 0; }
+        #ai-upload-modal .config-value { color: #4b5563; }
+        #ai-upload-modal .config-value code { background-color: #f3f4f6; padding: 3px 8px; border-radius: 4px; font-size: 13px; color: #111827;}
+        .modal-btn-secondary {
+            background-color: #ffffff;
+            color: var(--primary-color);
+            border: 1px solid var(--primary-color);
+            padding: 0.6rem 1.2rem; border-radius: 6px; font-weight: 500;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        .modal-btn-secondary:hover { background-color: #f0f5ff; }
+        
+        /* 【修改代码】API Key 弹窗的特定样式 */
+        #api-key-modal-content input { width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; box-sizing: border-box; font-family: 'Inter', sans-serif; font-size: 14px; margin-top: 1.5rem; }
+        #api-key-modal-content p { font-size: 13px; color: #6b7280; margin-top: 2rem; line-height: 1.6; }
+
+        .progress-log-header {
+            position: relative; /* 为删除按钮定位提供父容器 */
+        }
+
+        .delete-log-btn {
+            position: absolute; /* 相对于 .progress-log-entry 定位 */
+            bottom: 0.4rem;   /* 关键改动：从 'top' 改为 'bottom' */
+            right: 0.5rem;      /* 关键改动：调整右边距 */
+            font-size: 1.2rem;
+            color: #9ca3af;
+            cursor: pointer;
+            opacity: 0;
+            transition: all 0.2s;
+            padding: 2px 6px;
+            border-radius: 4px;
+            z-index: 5; /* 确保按钮在最上层 */
+        }
+
+        .progress-log-entry:hover .delete-log-btn {
+            opacity: 1; /* 悬停时显示 */
+        }
+
+        .delete-log-btn:hover {
+            color: #ef4444; /* 红色 */
+            background-color: #fee2e2;
+        }
+        
+        /* 鼠标在数字序号上显示为”可抓取“ */
+        .log-drag-handle {
+            cursor: grab;
+        }
+
+        /* 【新增代码】专门修正最后一个进展框的删除按钮位置 */
+        .progress-log-entry:last-child .delete-log-btn {
+            /* 因为最后一个框的 bottom-padding 被移除了,
+            我们需要把按钮向上移动一些来和其他框保持视觉一致。
+            这个值您可以根据喜好微调。
+            */
+            bottom: -1.4rem; 
+        }
+
+    </style>
+</head>
+<body>
+    <header>
+        <h1>项目管理看板</h1>
+        <div class="controls">
+            <button class="header-btn" id="ai-create-btn">
+                <span class="btn-text">自动录入</span>
+                <span class="btn-icon">
+                    <svg class="header-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2a2 2 0 0 1 2 2v2h-4V4a2 2 0 0 1 2-2zm5 4H7a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2zm-8 6H7v-2h2v2zm4 0h-2v-2h2v2zm4 0h-2v-2h2v2z" fill="white"></path></svg>
+                </span>
+            </button>
+
+            <button class="header-btn" id="config-btn">
+                <span class="btn-text">看板配置</span>
+                <span class="btn-icon">
+                    <svg class="header-icon" style="stroke: white; stroke-width: 1.5;" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69-.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19-.15-.24-.42-.12-.64l2 3.46c.12-.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69-.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"></path></svg>
+                </span>
+            </button>
+
+            <button class="header-btn" id="export-btn">
+                <span class="btn-text">备份数据</span>
+                <span class="btn-icon">
+                    <svg class="header-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M17.3 12.7l-5.3 5.3-5.3-5.3 1.4-1.4 3.9 3.9 3.9-3.9 1.4 1.4zM5 21h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2z" fill="white"></path></svg>
+                </span>
+            </button>
+            
+            <input type="file" id="import-input" accept=".json" style="display: none;">
+            <button class="header-btn" id="import-btn">
+                <span class="btn-text">恢复数据</span>
+                <span class="btn-icon">
+                    <svg class="header-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12.7 11.3l-5.3-5.3-1.4 1.4 3.9 3.9-3.9 3.9 1.4 1.4 5.3-5.3zM19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z" fill="white"></path></svg>
+                </span>
+            </button>
+        </div>
+    </header>
+
+    <div class="project-table-wrapper">
+        <div class="project-table" id="board-container">
+            </div>
+    </div>
+    <div class="bottom-controls-container">
+        <a class="add-project-btn">+ 新项目</a>
+        <a class="api-key-btn" id="api-key-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path></svg>
+            <span>API Key 配置</span>
+        </a>
+    </div>
+
+    <input type="file" id="ai-file-input" accept=".pdf,.docx,.pptx,.txt" multiple style="display: none;">
+    <input type="file" id="file-uploader" multiple style="display: none;" />
+    
+    <div id="project-modal" class="modal"><div class="modal-content"><form id="project-form"><h2 id="modal-title"></h2><input type="hidden" id="project-id" value=""><div id="project-form-fields"></div><div class="modal-actions"><button type="submit" style="background-color: var(--primary-color); color: white; border: none; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 500;">保存项目</button><button type="button" id="delete-btn" style="background-color: rgb(239, 68, 68); color: white; border: none; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 500; display: none;">删除项目</button></div></form></div></div>
+    <div id="summary-modal" class="modal"><div class="modal-content" id="summary-modal-content"><h2 id="summary-title"></h2><hr style="border: none; border-top: 1px solid var(--border-color); margin: 1rem 0;"><div id="summary-text-container"><div id="summary-text"></div></div><div class="modal-actions"><button id="summary-edit-btn" style="background-color: var(--primary-color); color: white; border: none; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 500;">编辑</button></div></div></div>
+    <div id="config-modal" class="modal"><div class="modal-content"><h2 style="font-weight: 600;">看板配置</h2><div id="config-form-fields"></div><div class="modal-actions"><button type="button" id="save-config-btn" class="modal-btn-secondary">保存配置</button></div></div></div>
+    <div id="progress-modal" class="modal"><div class="modal-content" id="progress-modal-content"><h2 id="progress-modal-title" style="font-weight: 600;"></h2><div id="progress-log-list" style="max-height: 40vh; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 6px; padding: 1rem; margin-bottom: 1rem;"></div><form id="progress-log-form"><label for="new-progress-note" style="display: block; font-weight: 500; margin-bottom: 0.5rem;">添加新进展:</label><textarea id="new-progress-note" rows="3" style="width: 100%; box-sizing: border-box; font-family: 'Inter', sans-serif; font-size: 14px; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px;" placeholder="记录新的沟通、发现或下一步计划..."></textarea><div class="modal-actions" style="margin-top: 1rem; justify-content: flex-end;"><button type="submit" style="background-color: var(--primary-color); color: white; border: none; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 500;">保存进展</button></div></form></div></div>
+    
+    <div id="ai-upload-modal" class="modal">
+        <div class="modal-content">
+            <h2 style="font-weight: 600; margin-top: 0;">AI录入</h2>
+            <p style="color: #4b5563; margin-bottom: 2.5rem;">AI分析功能将您上传的文件交由最先进的大语言模型进行深度、多维度的综合分析，并自动为您提炼关键信息。</p>
+            <div class="ai-config-section">
+                <div class="config-item"><span class="config-label">当前使用模型：</span><span class="config-value"><code>qwen-max-longcontext</code></span></div>
+                <div class="config-item"><span class="config-label">支持文件类型：</span><span class="config-value">pdf  ||  docx  ||  pptx  ||  txt</span></div>
+                <div class="config-item"><span class="config-label">支持文件数量：</span><span class="config-value">最多同时上传 5 个文件</span></div>
+                <div class="config-item"><span class="config-label">支持数据类型：</span><span class="config-value">目前仅支持对文本内容进行分析，对图片等多模态内容分析功能暂不支持。</span></div>
+            </div>
+            <div class="modal-actions" style="margin-top: 2rem; border-top: 1px solid var(--border-color); padding-top: 1.5rem;">
+                <button type="button" id="ai-upload-btn-secondary" class="modal-btn-secondary">上传文件</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="ai-edit-modal" class="modal">
+        <div class="modal-content" style="max-width: 800px; width: 90%;">
+            <form id="ai-edit-form">
+                <h2 id="ai-edit-title" style="font-weight: 600; margin-top:0;">编辑 AI 摘要</h2>
+                <textarea id="ai-edit-textarea" rows="20" style="width: 100%; box-sizing: border-box; font-family: 'Inter', sans-serif; font-size: 14px; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px;"></textarea>
+                <div class="modal-actions">
+                    <button type="submit" style="background-color: var(--primary-color); color: white; border: none; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 500;">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="api-key-modal" class="modal">
+        <div class="modal-content" id="api-key-modal-content">
+            <h2 style="font-weight: 600; margin-top: 0;">配置 API Key</h2>
+            <form id="api-key-form">
+                <input type="password" id="api-key-input" placeholder="目前仅支持qwen大模型，请输入以 sk- 开头的 API Key">
+                <p>API Key 将仅保存在您本地的浏览器中，不会上传至任何服务器，请放心使用。</p>
+                <div class="modal-actions">
+                    <button type="submit" style="background-color: var(--primary-color); color: white; border: none; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 500;">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        let data = { projects: [] };
+        let columnConfig = [];
+        let columnWidths = {};
+        const aiCreateBtn = document.getElementById('ai-create-btn');
+        const aiFileInput = document.getElementById('ai-file-input');
+        const fileUploader = document.getElementById('file-uploader');
+        const summaryModal = document.getElementById('summary-modal');
+        const projectModal = document.getElementById('project-modal');
+        const configModal = document.getElementById('config-modal');
+        const progressModal = document.getElementById('progress-modal');
+        const aiUploadModal = document.getElementById('ai-upload-modal');
+        const aiEditModal = document.getElementById('ai-edit-modal');
+        const apiKeyModal = document.getElementById('api-key-modal');
+        
+        const icons = {
+            name: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="header-icon-svg"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>`,
+            property: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="header-icon-svg"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>`,
+            status: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="header-icon-svg"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>`,
+            industry: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="header-icon-svg"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>`,
+            description: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="header-icon-svg"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>`,
+            startDate: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="header-icon-svg"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>`,
+            updatedAt: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="header-icon-svg"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>`,
+            aiSummary: `<svg id="ai-header-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="header-icon-svg"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect><rect x="9" y="9" width="6" height="6"></rect><line x1="9" y1="1" x2="9" y2="4"></line><line x1="15" y1="1" x2="15" y2="4"></line><line x1="9" y1="20" x2="9" y2="23"></line><line x1="15" y1="20" x2="15" y2="23"></line><line x1="20" y1="9" x2="23" y2="9"></line><line x1="20" y1="14" x2="23" y2="14"></line><line x1="1" y1="9" x2="4" y2="9"></line><line x1="1" y1="14" x2="4" y2="14"></line></svg>`,
+            attachments: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="header-icon-svg"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>`
+        };
+        
+        function formatDisplayDate(dateString, displayString) {
+            if (displayString) return displayString;
+            if (!dateString) return '';
+            const now = new Date();
+            const past = new Date(dateString);
+            const pad = (num) => num.toString().padStart(2, '0');
+            const time = `${pad(past.getHours())}:${pad(past.getMinutes())}`;
+            const isToday = now.toDateString() === past.toDateString();
+            if (isToday) return `今天 ${time}`;
+            const yesterday = new Date(now);
+            yesterday.setDate(now.getDate() - 1);
+            const isYesterday = yesterday.toDateString() === past.toDateString();
+            if (isYesterday) return `昨天 ${time}`;
+            return `${past.getMonth() + 1}月${pad(past.getDate())}日`;
+        }
+        
+        function getDefaultColumnConfig() { 
+            return [ 
+                { key: 'name', shortLabel: '项目名称', label: `${icons.name} 项目名称`, type: 'text', readonly: true, visible: true }, 
+                { key: 'property', shortLabel: '类型', label: `${icons.property} 类型`, type: 'select', options: ['股权', '并购', '不良'], visible: true, fixedWidth: true }, 
+                { key: 'status', shortLabel: '项目进度', label: `${icons.status} 项目进度`, type: 'select', options: ['尚未开始', '初步接触', '正在推进', '顺利完成', '已经放弃'], visible: true, fixedWidth: false }, 
+                { key: 'industry', shortLabel: '行业', label: `${icons.industry} 行业`, type: 'text', visible: true }, 
+                { key: 'description', shortLabel: '项目介绍', label: `${icons.description} 项目介绍`, type: 'text', visible: true }, 
+                { key: 'startDate', shortLabel: '接手时间', label: `${icons.startDate} 接手时间`, type: 'date', visible: true }, 
+                { key: 'updatedAt', shortLabel: '更新时间', label: `${icons.updatedAt} 更新时间`, type: 'readonly', visible: true }, 
+                { key: 'aiSummary', shortLabel: 'AI摘要', label: `${icons.aiSummary} AI摘要`, type: 'text', visible: true }, 
+                { key: 'attachments', shortLabel: '相关文件', label: `${icons.attachments} 相关文件`, type: 'file', visible: false }, 
+            ]; 
+        }
+        
+        function loadConfig() {
+            const configJSON = localStorage.getItem('investment_kanban_config');
+            const defaultConfig = getDefaultColumnConfig();
+            
+            if (configJSON) {
+                try {
+                    const savedConfig = JSON.parse(configJSON);
+                    const defaultConfigMap = new Map(defaultConfig.map(c => [c.key, c]));
+                    const migratedConfig = savedConfig.map(savedCol => {
+                        const defaultCol = defaultConfigMap.get(savedCol.key);
+                        if (defaultCol) {
+                            return { 
+                                ...defaultCol, 
+                                visible: savedCol.visible 
+                            };
+                        }
+                        return null; 
+                    }).filter(Boolean);
+                    defaultConfig.forEach(defaultCol => {
+                        if (!migratedConfig.some(c => c.key === defaultCol.key)) {
+                            migratedConfig.push(defaultCol);
+                        }
+                    });
+                    columnConfig = migratedConfig;
+                } catch (e) {
+                    columnConfig = defaultConfig;
+                }
+            } else {
+                columnConfig = defaultConfig;
+            }
+            const statusColumn = columnConfig.find(c => c.key === 'status');
+            if (statusColumn && statusColumn.options[0] === '尚未开始') {
+                statusColumn.options = ['尚未开始', '初步接触', '正在推进', '顺利完成', '已经放弃'];
+            }
+        }
+
+        function saveConfig() { localStorage.setItem('investment_kanban_config', JSON.stringify(columnConfig)); }
+        function getDefaultWidths() { 
+            return { 
+                name: '2.5fr', 
+                property: '0.8fr', 
+                status: '1fr', 
+                industry: '1.2fr', 
+                description: '5fr', 
+                startDate: '1fr', 
+                updatedAt: '1.2fr', 
+                aiSummary: '3fr', 
+                attachments: '2.5fr' 
+            }; 
+        }
+        function loadWidths() { const widthsJSON = localStorage.getItem('investment_kanban_widths'); try { if(widthsJSON) columnWidths = JSON.parse(widthsJSON); else columnWidths = getDefaultWidths(); } catch(e) { columnWidths = getDefaultWidths(); } }
+        function saveWidths() { localStorage.setItem('investment_kanban_widths', JSON.stringify(columnWidths)); }
+        function getDefaultData() {
+            return {
+                projects: [
+                {
+                    id: 1, name: "诺诺（苏州）新材料有限公司", property: "并购", status: "初步接触", industry: "OLED材料", description: "该公司专注于高端OLED分子砌块和新材料的研发、生产和销售。", startDate: "2025-08-05", updatedAt: new Date().toISOString(), attachments: ["诺诺新材料-BP.pdf"],
+                    aiSummary: "...",
+                    progressLog: [ { date: "2025-08-10T10:00:00Z", displayDate: null, note: "与项目方进行首次电话沟通" } ]
+                }]
+            };
+        }
+        function loadData() { 
+            const dataJSON = localStorage.getItem('investment_kanban_data'); 
+            try { 
+                if (dataJSON) {
+                    data = JSON.parse(dataJSON); 
+                    const statusMap = { "未开始": "尚未开始", "已完成": "顺利完成", "已放弃": "已经放弃" };
+                    data.projects.forEach(p => { if(statusMap[p.status]) p.status = statusMap[p.status]; });
+                }
+                else data = getDefaultData(); 
+            } catch(e) { 
+                data = getDefaultData(); 
+            } 
+        }
+        function saveData() { localStorage.setItem('investment_kanban_data', JSON.stringify(data)); }
+        
+        function getGridTemplateColumns() { const visibleColumns = columnConfig.filter(c => c.visible).map(c => columnWidths[c.key] || '1fr'); return ['50px', ...visibleColumns, '60px'].join(' '); }
+
+
+
+        
+        function renderBoard() {
+            const boardContainer = document.getElementById('board-container');
+            boardContainer.innerHTML = '';
+            const gridColumns = getGridTemplateColumns();
+            const headerRow = document.createElement('div');
+            headerRow.className = 'project-header-row';
+            headerRow.style.gridTemplateColumns = gridColumns;
+            const sequenceHeaderCell = document.createElement('div');
+            sequenceHeaderCell.className = 'header-cell';
+            sequenceHeaderCell.textContent = '序号';
+            sequenceHeaderCell.dataset.key = '序号';
+            headerRow.appendChild(sequenceHeaderCell);
+            const visibleColumnConfig = columnConfig.filter(c => c.visible);
+            visibleColumnConfig.forEach((col, index) => { 
+                const headerCell = document.createElement('div'); 
+                headerCell.className = 'header-cell'; 
+                headerCell.innerHTML = col.label;
+                headerCell.dataset.key = col.key; 
+                headerCell.draggable = true; 
+                if (!col.fixedWidth) {
+                    const resizeHandle = document.createElement('div'); 
+                    resizeHandle.className = 'resize-handle'; 
+                    headerCell.appendChild(resizeHandle); 
+                }
+                headerRow.appendChild(headerCell); 
+            });
+            const actionHeader = document.createElement('div');
+            actionHeader.className = 'header-cell';
+            actionHeader.dataset.key = 'actions';
+            actionHeader.textContent = '操作';
+            headerRow.appendChild(actionHeader);
+            boardContainer.appendChild(headerRow);
+            initResizeFunctionality(headerRow);
+            initColumnDragAndDrop(headerRow);
+            data.projects.forEach((project, index) => { const projectRow = createProjectRow(project, gridColumns, index + 1); boardContainer.appendChild(projectRow); initRowDragAndDrop(projectRow); });
+        }
+
+        function createProjectRow(project, gridColumns, rowNumber) {
+            const projectRow = document.createElement('div');
+            projectRow.className = 'project-row';
+            projectRow.dataset.projectId = project.id;
+            projectRow.style.gridTemplateColumns = gridColumns;
+            projectRow.dataset.status = project.status;
+            projectRow.draggable = true;
+            const sequenceCell = document.createElement('div');
+            sequenceCell.className = 'cell drag-handle-cell';
+            sequenceCell.textContent = rowNumber;
+            projectRow.appendChild(sequenceCell);
+            const visibleColumnConfig = columnConfig.filter(c => c.visible);
+            visibleColumnConfig.forEach(col => {
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                cell.dataset.key = col.key;
+                let value = project[col.key] || '';
+                if (col.key === 'updatedAt') { value = formatDisplayDate(value); }
+                if (col.key === 'attachments') {
+                    cell.innerHTML = ''; const container = document.createElement('div'); container.className = 'attachments-container';
+                    if (Array.isArray(value)) {
+                        value.forEach(fileName => { const pill = document.createElement('span'); pill.className = 'attachment-pill'; pill.textContent = fileName; pill.addEventListener('click', (e) => { e.stopPropagation(); navigator.clipboard.writeText(fileName).then(() => { const originalText = pill.textContent; pill.textContent = '已复制!'; setTimeout(() => { pill.textContent = originalText; }, 1500); }); }); container.appendChild(pill); });
+                    } cell.appendChild(container);
+                } else if (col.key === 'aiSummary') {
+                    cell.textContent = value ? value.substring(0, 100) + '...' : ''; if (value) { cell.style.textDecoration = 'underline'; cell.style.color = '#6b7280'; }
+                } else if (col.type === 'select') {
+                    const pill = document.createElement('span');
+                    pill.className = `pill pill-${col.key}`;
+                    pill.dataset.value = value;
+                    pill.textContent = value;
+                    pill.addEventListener('click', (e) => { e.stopPropagation(); createInPlaceEditor(cell, project, col.key); });
+                    cell.appendChild(pill);
+                    if (col.key === 'status') {
+                        const logBtn = document.createElement('span');
+                        logBtn.className = 'progress-log-btn';
+                        logBtn.title = '查看/编辑项目进展';
+                        logBtn.innerHTML = '💬'; 
+                        logBtn.style.fontSize = '1rem';
+                        logBtn.style.fontWeight = 'bold';
+                        logBtn.addEventListener('click', (e) => { e.stopPropagation(); openProgressModal(project.id); });
+                        cell.appendChild(logBtn);
+                    }
+                } else if (col.key === 'name') {
+                    const nameSpan = document.createElement('span');
+                    nameSpan.className = 'cell-name-span';
+                    nameSpan.textContent = value;
+                    cell.appendChild(nameSpan);
+                } else {
+                    cell.textContent = value;
+                }
+                cell.title = Array.isArray(project[col.key]) ? project[col.key].join(', ') : project[col.key] || '';
+                projectRow.appendChild(cell);
+            });
+            const actionCell = document.createElement('div');
+            actionCell.className = 'cell action-cell';
+            const editBtn = document.createElement('button');
+            editBtn.className = 'edit-btn';
+            editBtn.innerHTML = '•••';
+            editBtn.title = '编辑项目';
+            actionCell.appendChild(editBtn);
+            projectRow.appendChild(actionCell);
+            projectRow.querySelector('.edit-btn').addEventListener('click', e => { e.stopPropagation(); openProjectModal(project.id); });
+            projectRow.querySelector('.cell-name-span')?.addEventListener('click', e => { e.stopPropagation(); createInPlaceEditor(e.target.parentElement, project, 'name'); }); 
+            projectRow.querySelectorAll('.cell[data-key]').forEach(cell => {
+                const key = cell.dataset.key;
+                if (key === 'aiSummary') { 
+                    cell.addEventListener('click', (e) => { 
+                        e.stopPropagation(); document.getElementById('summary-title').textContent = `${project.name} - AI摘要`; 
+                        const summaryTextDiv = document.getElementById('summary-text'); summaryTextDiv.innerHTML = marked.parse(project.aiSummary || '（无摘要）');
+                        const table = summaryTextDiv.querySelector('table');
+                        if (table) { const wrapper = document.createElement('div'); wrapper.className = 'table-container'; if (table.parentNode) { table.parentNode.insertBefore(wrapper, table); } wrapper.appendChild(table); }
+                        summaryModal.dataset.projectId = project.id; summaryModal.style.display = 'flex'; 
+                    }); 
+                } else if (['attachments', 'name', 'updatedAt', 'actions', 'status', 'property'].includes(key)) { /* No-op */ }
+                else { cell.addEventListener('click', () => createInPlaceEditor(cell, project, key)); }
+            });
+            return projectRow;
+        }
+        
+        const progressLogList = document.getElementById('progress-log-list');
+        let draggedLog = null;
+        progressLogList.addEventListener('dragstart', e => { draggedLog = e.target.closest('.progress-log-entry'); if (draggedLog) { setTimeout(() => { draggedLog.classList.add('log-dragging'); }, 0); } });
+        progressLogList.addEventListener('dragend', e => { if (draggedLog) { draggedLog.classList.remove('log-dragging'); draggedLog = null; } });
+        progressLogList.addEventListener('dragover', e => { e.preventDefault(); const target = e.target.closest('.progress-log-entry'); if (target && draggedLog && !target.isSameNode(draggedLog)) { const rect = target.getBoundingClientRect(); const isAfter = e.clientY > rect.top + rect.height / 2; if (isAfter) { target.parentNode.insertBefore(draggedLog, target.nextSibling); } else { target.parentNode.insertBefore(draggedLog, target); } } });
+        progressLogList.addEventListener('drop', e => {
+            e.preventDefault();
+            if (draggedLog) {
+                const projectId = document.getElementById('progress-log-form').dataset.projectId;
+                const project = data.projects.find(p => p.id == projectId);
+                if (project) {
+                    const newOrderedLogs = Array.from(progressLogList.querySelectorAll('.progress-log-entry')).map(entry => {
+                        const originalIndex = parseInt(entry.dataset.logIndex, 10);
+                        return project.progressLog[originalIndex];
+                    });
+                    project.progressLog = newOrderedLogs;
+                    saveData();
+                    openProgressModal(projectId);
+                }
+            }
+        });
+        
+        progressLogList.addEventListener('click', e => {
+            const projectId = document.getElementById('progress-log-form').dataset.projectId;
+            if (!projectId) return;
+            const project = data.projects.find(p => p.id == projectId);
+            if (!project) return;
+
+
+            const deleteBtn = e.target.closest('.delete-log-btn');
+
+            if (deleteBtn) {
+                if (confirm('确定要删除这条进展记录吗？')) {
+                    const entryElement = deleteBtn.closest('.progress-log-entry');
+                    const logIndex = parseInt(entryElement.dataset.logIndex, 10);
+                    
+                    project.progressLog.splice(logIndex, 1); // 从数组中移除
+                    saveData();
+                    openProgressModal(projectId); // 刷新弹窗
+                }
+                return; // 结束后续操作
+            }
+    
+            const openAndFocusEditor = (entryElement) => {
+                const logIndex = parseInt(entryElement.dataset.logIndex, 10);
+                const logContent = project.progressLog[logIndex];
+                const contentDiv = entryElement.querySelector('.progress-log-content');
+                
+                contentDiv.innerHTML = `
+                    <textarea class="log-edit-textarea">${logContent.note.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</textarea>
+                    <div class="log-edit-actions">
+                        <button class="log-save-btn">保存</button>
+                        <button class="log-cancel-btn">取消</button>
+                    </div>`;
+                const textarea = contentDiv.querySelector('.log-edit-textarea');
+                const autoSize = () => { textarea.style.height = 'auto'; textarea.style.height = textarea.scrollHeight + 'px'; };
+                textarea.addEventListener('input', autoSize, false);
+                textarea.addEventListener('keydown', (evt) => {
+                    // 当按下的键是Enter，并且没有同时按下Shift键时
+                    if (evt.key === 'Enter' && !evt.shiftKey) {
+                        evt.preventDefault(); // 阻止默认的换行行为
+                        // 找到并触发“保存”按钮的点击事件
+                        const saveBtn = contentDiv.querySelector('.log-save-btn');
+                        if (saveBtn) {
+                            saveBtn.click();
+                        }
+                    }
+                });
+                textarea.focus();
+                autoSize();
+            
+            };
+            const titleSpan = e.target.closest('.progress-log-title-editable');
+            const dateSpan = e.target.closest('.log-date-editable');
+            const noteP = e.target.closest('.progress-log-note');
+            const saveBtn = e.target.closest('.log-save-btn');
+            const cancelBtn = e.target.closest('.log-cancel-btn');
+            if (titleSpan && !titleSpan.querySelector('input')) {
+                const entryElement = titleSpan.closest('.progress-log-entry');
+                const logIndex = parseInt(entryElement.dataset.logIndex, 10);
+                const log = project.progressLog[logIndex];
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.value = titleSpan.textContent;
+                input.className = 'log-title-edit-input';
+                titleSpan.innerHTML = '';
+                titleSpan.appendChild(input);
+                input.focus();
+                const save = () => {
+                    log.title = input.value.trim() || '沟通纪要';
+                    saveData(); openProgressModal(projectId);
+                };
+                input.addEventListener('blur', save);
+                input.addEventListener('keydown', evt => { if (evt.key === 'Enter') input.blur(); });
+            }
+            else if (dateSpan && !dateSpan.querySelector('input')) {
+                const entryElement = dateSpan.closest('.progress-log-entry');
+                const logIndex = parseInt(entryElement.dataset.logIndex, 10);
+                const log = project.progressLog[logIndex];
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.value = dateSpan.textContent.trim();
+                input.className = 'log-date-edit-input';
+                dateSpan.innerHTML = '';
+                dateSpan.appendChild(input);
+                input.focus();
+                const save = () => {
+                    log.displayDate = input.value.trim();
+                    const parsedDate = new Date(log.displayDate);
+                    if (!isNaN(parsedDate.getTime())) { log.date = parsedDate.toISOString(); }
+                    saveData(); openProgressModal(projectId);
+                };
+                input.addEventListener('blur', save);
+                input.addEventListener('keydown', evt => { if (evt.key === 'Enter') input.blur(); });
+            }
+            else if (noteP && !noteP.querySelector('textarea')) {
+                const entryElement = noteP.closest('.progress-log-entry');
+                openAndFocusEditor(entryElement);
+            }
+            else if (saveBtn) {
+                const entryElement = saveBtn.closest('.progress-log-entry');
+                const logIndex = parseInt(entryElement.dataset.logIndex, 10);
+                const textarea = entryElement.querySelector('.log-edit-textarea');
+                project.progressLog[logIndex].note = textarea.value;
+                project.updatedAt = new Date().toISOString();
+                saveData(); renderBoard(); openProgressModal(projectId);
+            }
+            else if (cancelBtn) {
+                openProgressModal(projectId);
+            }
+        });
+        function openProgressModal(projectId) {
+            const project = data.projects.find(p => p.id == projectId);
+            if (!project) return;
+            if (!Array.isArray(project.progressLog)) { project.progressLog = []; }
+
+            const modalTitle = document.getElementById('progress-modal-title');
+            const logList = document.getElementById('progress-log-list');
+            const form = document.getElementById('progress-log-form');
+            const textarea = document.getElementById('new-progress-note');
+
+            modalTitle.textContent = `${project.name} - 项目进展`;
+            logList.innerHTML = '';
+
+            if (project.progressLog.length === 0) {
+                logList.innerHTML = '<p style="color: #9ca3af; text-align: center; margin: 2rem 0;">暂无进展记录，请在下方添加第一条。</p>';
+            } else {
+                project.progressLog.forEach((log, index) => {
+                    const entryDiv = document.createElement('div');
+                    entryDiv.className = 'progress-log-entry';
+                    entryDiv.dataset.logIndex = index;
+
+                    const formattedDate = formatDisplayDate(log.date, log.displayDate);
+                    
+                    entryDiv.innerHTML = `
+                        <div class="progress-log-header">
+                            <div class="progress-log-meta-left">
+                                <span class="progress-log-index log-drag-handle" draggable="true">${index + 1}</span>
+                                <span class="progress-log-title-editable">${log.title || '沟通纪要'}</span>
+                            </div>
+                            <div class="progress-log-meta-right">
+                                <span class="log-date-editable">${formattedDate}</span>
+                            </div>
+                        </div>
+                        <div class="progress-log-content">
+                            <p class="progress-log-note">${log.note.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>
+                        </div>
+                        <span class="delete-log-btn" title="删除此条记录">×</span>
+                    `;
+                    logList.appendChild(entryDiv);
+                });
+            }
+            form.dataset.projectId = projectId;
+            textarea.value = '';
+            progressModal.style.display = 'flex';
+        }
+
+        function createInPlaceEditor(cell, project, key) {
+            const config = columnConfig.find(c => c.key === key);
+            if (!config || config.type === 'readonly' || cell.querySelector('.inline-editor')) return;
+
+            const projectRow = cell.closest('.project-row');
+            if (projectRow) projectRow.draggable = false;
+
+            const originalContent = cell.innerHTML;
+            const editorContainer = document.createElement('div');
+            editorContainer.className = 'inline-editor';
+            let editor;
+            if (config.type === 'select') {
+                editor = document.createElement('select');
+                config.options.forEach(opt => { const option = document.createElement('option'); option.value = opt; option.textContent = opt; if (opt === project[key]) { option.selected = true; } editor.appendChild(option); });
+            } else {
+                editor = document.createElement('input');
+                editor.type = config.type === 'date' ? 'date' : 'text';
+                editor.value = project[key] || '';
+            }
+            const save = () => {
+                project[key] = editor.value;
+                project.updatedAt = new Date().toISOString();
+                saveData();
+                renderBoard();
+            };
+            editor.addEventListener('blur', save);
+            editor.addEventListener('keydown', e => {
+                if (e.key === 'Enter') {
+                    editor.blur();
+                } else if (e.key === 'Escape') {
+                    cell.innerHTML = originalContent;
+                    if (projectRow) projectRow.draggable = true;
+                }
+            });
+            editorContainer.appendChild(editor);
+            cell.innerHTML = '';
+            cell.appendChild(editorContainer);
+            editor.focus();
+        }
+        function initResizeFunctionality(headerRow) { const handles = headerRow.querySelectorAll('.resize-handle'); let isResizing = false, startX, startWidth, columnKey; handles.forEach(handle => { handle.addEventListener('mousedown', (e) => { e.preventDefault(); e.stopPropagation(); isResizing = true; startX = e.pageX; const headerCell = e.target.parentElement; columnKey = headerCell.dataset.key; startWidth = headerCell.offsetWidth; document.body.style.cursor = 'col-resize'; document.addEventListener('mousemove', onMouseMove); document.addEventListener('mouseup', onMouseUp); }); }); function onMouseMove(e) { if (!isResizing) return; const deltaX = e.pageX - startX; const newWidth = startWidth + deltaX; if (newWidth > 50) { columnWidths[columnKey] = `${newWidth}px`; const newGridTemplate = getGridTemplateColumns(); document.querySelectorAll('.project-row, .project-header-row').forEach(row => { row.style.gridTemplateColumns = newGridTemplate; }); } } function onMouseUp() { if (!isResizing) return; isResizing = false; document.body.style.cursor = ''; saveWidths(); document.removeEventListener('mousemove', onMouseMove); document.removeEventListener('mouseup', onMouseUp); } }
+        function initColumnDragAndDrop(headerRow) { const headers = Array.from(headerRow.querySelectorAll('.header-cell[draggable="true"]')); let draggedItem = null; headers.forEach(header => { header.addEventListener('dragstart', (e) => { if (e.target.classList.contains('resize-handle')) { e.preventDefault(); return; } draggedItem = e.target; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', draggedItem.dataset.key); setTimeout(() => { if(draggedItem) draggedItem.classList.add('dragging'); }, 0); }); header.addEventListener('dragend', () => { if(draggedItem) draggedItem.classList.remove('dragging'); document.querySelectorAll('.header-cell').forEach(h => h.classList.remove('drag-over-highlight')); }); header.addEventListener('dragover', (e) => { e.preventDefault(); const target = e.target.closest('.header-cell'); if (target && target.draggable) { document.querySelectorAll('.header-cell').forEach(h => h.classList.remove('drag-over-highlight')); target.classList.add('drag-over-highlight'); } }); header.addEventListener('dragleave', (e) => { const target = e.target.closest('.header-cell'); if(target) target.classList.remove('drag-over-highlight'); }); header.addEventListener('drop', (e) => { e.preventDefault(); const targetItem = e.target.closest('.header-cell'); if (targetItem) targetItem.classList.remove('drag-over-highlight'); if (!targetItem || !targetItem.draggable) { return; } const draggedKey = e.dataTransfer.getData('text/plain'); const targetKey = targetItem.dataset.key; if (draggedKey && targetKey && draggedKey !== targetKey) { const draggedIndex = columnConfig.findIndex(col => col.key === draggedKey); const targetIndex = columnConfig.findIndex(col => col.key === targetKey); if (draggedIndex > -1 && targetIndex > -1) { const [removed] = columnConfig.splice(draggedIndex, 1); columnConfig.splice(targetIndex, 0, removed); saveConfig(); renderBoard(); } } }); }); }
+        
+        let draggedRowId = null;
+        function initRowDragAndDrop(projectRow) {
+            projectRow.addEventListener('dragstart', (e) => { draggedRowId = projectRow.dataset.projectId; setTimeout(() => { projectRow.classList.add('row-dragging'); }, 0); });
+            projectRow.addEventListener('dragend', (e) => { projectRow.classList.remove('row-dragging'); document.querySelectorAll('.project-row').forEach(row => row.classList.remove('drag-over-top')); draggedRowId = null; });
+            projectRow.addEventListener('dragover', (e) => { e.preventDefault(); const targetRow = e.target.closest('.project-row'); if (targetRow && targetRow.dataset.projectId !== draggedRowId) { document.querySelectorAll('.project-row').forEach(row => row.classList.remove('drag-over-top')); targetRow.classList.add('drag-over-top'); } });
+            projectRow.addEventListener('dragleave', (e) => { const targetRow = e.target.closest('.project-row'); if (targetRow) { targetRow.classList.remove('drag-over-top'); } });
+            projectRow.addEventListener('drop', (e) => { e.preventDefault(); const targetRow = e.target.closest('.project-row'); if (!targetRow || !draggedRowId || targetRow.dataset.projectId === draggedRowId) { return; } const targetId = targetRow.dataset.projectId; const draggedIndex = data.projects.findIndex(p => p.id == draggedRowId); const [draggedItem] = data.projects.splice(draggedIndex, 1); const targetIndex = data.projects.findIndex(p => p.id == targetId); data.projects.splice(targetIndex, 0, draggedItem); saveData(); renderBoard(); });
+        }
+        
+        function openProjectModal(projectId = null, prefillData = null) { const projectForm = document.getElementById('project-form'); const formFields = document.getElementById('project-form-fields'); formFields.innerHTML = ''; const editableColumns = columnConfig.filter(col => col.type !== 'readonly'); editableColumns.forEach(col => { const label = document.createElement('label'); label.textContent = `${col.shortLabel}:`; const inputContainer = document.createElement('div'); if (col.key === 'attachments') { inputContainer.id = 'modal-attachments-manager'; } else { let input; if (col.type === 'select') { input = document.createElement('select'); col.options.forEach(opt => { const option = document.createElement('option'); option.value = opt; option.textContent = opt; input.appendChild(option); }); } else if (['description', 'aiSummary'].includes(col.key)) { input = document.createElement('textarea'); input.rows = 10; } else { input = document.createElement('input'); input.type = col.type; } input.id = `form-${col.key}`; input.name = col.key; inputContainer.appendChild(input); } formFields.appendChild(label); formFields.appendChild(inputContainer); }); projectForm.reset(); document.getElementById('delete-btn').style.display = 'none'; let currentAttachments = []; if (projectId) { const project = data.projects.find(p => p.id == projectId); currentAttachments = Array.isArray(project.attachments) ? [...project.attachments] : []; document.getElementById('modal-title').textContent = '编辑项目'; document.getElementById('project-id').value = projectId; editableColumns.forEach(col => { if (col.key !== 'attachments' && document.getElementById(`form-${col.key}`)) { document.getElementById(`form-${col.key}`).value = project[col.key] || ''; } }); document.getElementById('delete-btn').style.display = 'inline-block'; } else { document.getElementById('modal-title').textContent = (prefillData ? 'AI分析结果 - 请确认' : '创建新项目'); document.getElementById('project-id').value = ''; if (prefillData) { editableColumns.forEach(col => { if (col.key !== 'attachments' && prefillData[col.key] && document.getElementById(`form-${col.key}`)) { document.getElementById(`form-${col.key}`).value = prefillData[col.key]; } }); if(prefillData.attachments) { currentAttachments = Array.isArray(prefillData.attachments) ? prefillData.attachments : [prefillData.attachments]; } } } renderAttachmentManager(document.getElementById('modal-attachments-manager'), currentAttachments); projectModal.style.display = 'flex'; }
+        function renderAttachmentManager(container, attachments) { if (!container) return; container.innerHTML = ''; container.attachments = attachments; attachments.forEach((name, index) => { const pill = document.createElement('div'); pill.className = 'attachment-pill'; pill.style.marginBottom = '8px'; pill.textContent = name; const removeBtn = document.createElement('span'); removeBtn.textContent = ' ✖'; removeBtn.style.cursor = 'pointer'; removeBtn.style.marginLeft = '8px'; removeBtn.onclick = () => { attachments.splice(index, 1); renderAttachmentManager(container, attachments); }; pill.appendChild(removeBtn); container.appendChild(pill); }); const addBtn = document.createElement('button'); addBtn.type = 'button'; addBtn.style.marginTop = attachments.length > 0 ? '8px' : '0'; addBtn.textContent = '添加附件...'; addBtn.onclick = () => { fileUploader.onchange = (e) => { for(const file of e.target.files) { attachments.push(file.name); } renderAttachmentManager(container, attachments); e.target.value = ''; }; fileUploader.click(); }; container.appendChild(addBtn); }
+        document.getElementById('project-form').addEventListener('submit', e => { e.preventDefault(); const projectId = document.getElementById('project-id').value; const projectData = {}; const editableColumns = columnConfig.filter(col => col.type !== 'readonly'); editableColumns.forEach(col => { if(col.key !== 'attachments' && document.getElementById(`form-${col.key}`)) { projectData[col.key] = document.getElementById(`form-${col.key}`).value; } }); const attachmentManager = document.getElementById('modal-attachments-manager'); projectData.attachments = attachmentManager ? attachmentManager.attachments : []; projectData.updatedAt = new Date().toISOString(); if (projectId) { const pIndex = data.projects.findIndex(p => p.id == projectId); data.projects[pIndex] = { ...data.projects[pIndex], ...projectData }; } else { projectData.id = Date.now(); if(!projectData.startDate) projectData.startDate = new Date().toISOString().slice(0, 10); data.projects.unshift(projectData); } saveData(); renderBoard(); projectModal.style.display = 'none'; });
+        
+        document.getElementById('progress-log-form').addEventListener('submit', e => {
+            e.preventDefault();
+            const projectId = e.currentTarget.dataset.projectId;
+            const textarea = document.getElementById('new-progress-note');
+            const noteText = textarea.value.trim();
+            if (noteText && projectId) {
+                const project = data.projects.find(p => p.id == projectId);
+                if (project) {
+                    if (!Array.isArray(project.progressLog)) { project.progressLog = []; }
+                    project.progressLog.push({ date: new Date().toISOString(), displayDate: null, title: '沟通纪要', note: noteText });
+                    project.updatedAt = new Date().toISOString();
+                    saveData(); 
+                    renderBoard(); 
+                    openProgressModal(projectId);
+                }
+            }
+        });
+
+        function openConfigModal() { const container = document.getElementById('config-form-fields'); container.innerHTML = ''; columnConfig.forEach(col => { const row = document.createElement('div'); row.className = 'config-row'; const label = document.createElement('label'); const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.id = `config-check-${col.key}`; checkbox.checked = col.visible; label.htmlFor = `config-check-${col.key}`; label.innerHTML = col.label; row.appendChild(label); row.appendChild(checkbox); container.appendChild(row); }); configModal.style.display = 'flex'; }
+        document.getElementById('save-config-btn').addEventListener('click', () => { columnConfig.forEach(col => { const checkbox = document.getElementById(`config-check-${col.key}`); if (checkbox) { col.visible = checkbox.checked; } }); saveConfig(); renderBoard(); configModal.style.display = 'none'; });
+        document.getElementById('config-btn').addEventListener('click', openConfigModal);
+        
+        // Modal Closing Logic
+        projectModal.addEventListener('click', e => { if (e.target === projectModal) projectModal.style.display = 'none'; });
+        summaryModal.addEventListener('click', e => { if (e.target === summaryModal) summaryModal.style.display = 'none'; });
+        configModal.addEventListener('click', e => { if (e.target === configModal) configModal.style.display = 'none'; });
+        aiUploadModal.addEventListener('click', e => { if (e.target === aiUploadModal) aiUploadModal.style.display = 'none'; });
+        aiEditModal.addEventListener('click', e => { if (e.target === aiEditModal) aiEditModal.style.display = 'none'; });
+        apiKeyModal.addEventListener('click', e => { if (e.target === apiKeyModal) apiKeyModal.style.display = 'none'; });
+        progressModal.addEventListener('click', e => {
+            if (e.target === progressModal) {
+                const isEditing = progressModal.querySelector('.log-edit-textarea, .log-date-editable + input');
+                if (!isEditing) {
+                    progressModal.style.display = 'none';
+                }
+            }
+        });
+        document.querySelector('.add-project-btn').addEventListener('click', () => openProjectModal(null));
+        document.getElementById('delete-btn').addEventListener('click', () => { const projectId = document.getElementById('project-id').value; if (confirm('确定要永久删除此项目吗？')) { data.projects = data.projects.filter(p => p.id != projectId); saveData(); renderBoard(); projectModal.style.display = 'none'; } });
+        document.getElementById('export-btn').addEventListener('click', () => { const exportData = { config: columnConfig, widths: columnWidths, data: data }; const dataStr = JSON.stringify(exportData, null, 2); const dataBlob = new Blob([dataStr], {type: "application/json"}); const link = document.createElement('a'); link.download = `kanban_backup_${new Date().toISOString().slice(0,10)}.json`; link.href = URL.createObjectURL(dataBlob); link.click(); URL.revokeObjectURL(link.href); });
+        document.getElementById('import-btn').addEventListener('click', () => document.getElementById('import-input').click());
+        document.getElementById('import-input').addEventListener('change', e => { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = function(event) { try { const imported = JSON.parse(event.target.result); if (imported.data && imported.data.projects && imported.config && imported.widths) { if (confirm('导入数据将会覆盖当前所有项目和配置，确定要继续吗？')) { data = imported.data; columnConfig = imported.config; columnWidths = imported.widths; saveData(); saveConfig(); saveWidths(); renderBoard(); alert('数据和配置导入成功！'); } } else { alert('导入失败，文件格式不正确。'); } } catch (err) { alert('导入失败，文件不是有效的JSON。'); } }; reader.readAsText(file); e.target.value = ''; });
+        
+        document.getElementById('api-key-btn').addEventListener('click', () => {
+            const savedKey = localStorage.getItem('dashscope_api_key');
+            if (savedKey) {
+                document.getElementById('api-key-input').value = savedKey;
+            }
+            apiKeyModal.style.display = 'flex';
+        });
+
+        document.getElementById('api-key-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const apiKey = document.getElementById('api-key-input').value.trim();
+            if (apiKey && apiKey.startsWith('sk-')) {
+                localStorage.setItem('dashscope_api_key', apiKey);
+                apiKeyModal.style.display = 'none';
+                alert('API Key 保存成功！');
+            } else {
+                alert('请输入有效的 API Key (必须以 sk- 开头)。');
+            }
+        });
+
+
+        // AI Upload Flow
+        aiCreateBtn.addEventListener('click', () => { aiUploadModal.style.display = 'flex'; });
+        document.getElementById('ai-upload-btn-secondary').addEventListener('click', () => { aiFileInput.click(); });
+        aiFileInput.addEventListener('change', async (e) => {
+            const files = e.target.files;
+            if (!files || files.length === 0) return;
+            if (files.length > 5) {
+                alert('一次最多只能上传 5 个文件。');
+                e.target.value = '';
+                return;
+            }
+            
+            aiUploadModal.style.display = 'none';
+            const aiBtnText = aiCreateBtn.querySelector('.btn-text');
+            aiBtnText.textContent = '🧠 AI分析中...';
+            aiCreateBtn.disabled = true;
+            
+            const formData = new FormData();
+            const attachmentNames = [];
+            for (const file of files) {
+                formData.append('files', file);
+                attachmentNames.push(file.name);
+            }
+
+            try {
+                const userApiKey = localStorage.getItem('dashscope_api_key');
+                if (!userApiKey || !userApiKey.startsWith('sk-')) {
+                    throw new Error('请先在右下角“API Key 配置”中设置您的 Dashscope API Key！');
+                }
+
+                const response = await fetch('http://127.0.0.1:5000/analyze', { 
+                    method: 'POST', 
+                    headers: {
+                        'X-Api-Key': userApiKey
+                    },
+                    body: formData 
+                });
+
+                if (!response.ok) { 
+                    const errorData = await response.json().catch(() => ({error: '服务器返回了不可读的错误信息。'})); 
+                    throw new Error(errorData.error || `服务器返回状态 ${response.status}`); 
+                }
+                const result = await response.json();
+                result.attachments = attachmentNames;
+                openProjectModal(null, result);
+            } catch (error) {
+                alert(`AI创建项目失败: ${error.message}\n请确认本地AI分析服务器 (analyzer_server.py) 是否已正确运行，以及API Key是否正确。`);
+            } finally {
+                aiBtnText.textContent = 'AI录入';
+                aiCreateBtn.disabled = false;
+                e.target.value = '';
+            }
+        });
+        
+        // AI Summary Edit Flow
+        document.getElementById('summary-edit-btn').addEventListener('click', () => {
+            const projectId = summaryModal.dataset.projectId;
+            if (!projectId) return;
+            const project = data.projects.find(p => p.id == projectId);
+            if (!project) return;
+            
+            document.getElementById('ai-edit-title').textContent = `编辑 AI 摘要 - ${project.name}`;
+            document.getElementById('ai-edit-textarea').value = project.aiSummary || '';
+            document.getElementById('ai-edit-form').dataset.projectId = projectId;
+            
+            summaryModal.style.display = 'none';
+            aiEditModal.style.display = 'flex';
+        });
+
+        document.getElementById('ai-edit-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const projectId = e.currentTarget.dataset.projectId;
+            const project = data.projects.find(p => p.id == projectId);
+            if(project) {
+                project.aiSummary = document.getElementById('ai-edit-textarea').value;
+                project.updatedAt = new Date().toISOString();
+                saveData();
+                renderBoard();
+                aiEditModal.style.display = 'none';
+            }
+        });
+
+        // 【新增代码：“添加新进展”输入框支持Enter保存】
+        document.getElementById('new-progress-note').addEventListener('keydown', (evt) => {
+             // 当按下的键是Enter，并且没有同时按下Shift键时
+            if (evt.key === 'Enter' && !evt.shiftKey) {
+                evt.preventDefault(); // 阻止默认的换行行为
+                // 找到并触发“保存进展”按钮的点击事件
+                document.querySelector('#progress-log-form button[type="submit"]').click();
+            }
+        });
+        
+        // --- Initial Load ---
+        loadConfig();
+        loadWidths();
+        loadData();
+        renderBoard();
+    });
+    </script>
+
+</body>
+</html>

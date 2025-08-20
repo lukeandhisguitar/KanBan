@@ -1,0 +1,12 @@
+# Web Framework
+flask==2.3.3
+gunicorn==21.2.0
+flask-cors==4.0.0
+
+# Document Parsing
+PyPDF2==3.0.1
+python-docx==1.1.0
+python-pptx==0.6.23
+
+# Alibaba Cloud API
+dashscope==1.15.0
