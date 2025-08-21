@@ -963,7 +963,7 @@
                     throw new Error('请先在右下角“API Key 配置”中设置您的 Dashscope API Key！');
                 }
 
-                const response = await fetch('http://127.0.0.1:5000/analyze', { 
+                const response = await fetch('/analyze', { 
                     method: 'POST', 
                     headers: {
                         'X-Api-Key': userApiKey
