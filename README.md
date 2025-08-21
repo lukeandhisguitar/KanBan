@@ -1,7 +1,7 @@
 # KanBan
-KanBan is a compact and user-tailored personal-project-management tool, using html + flask + Qwen API. 
+KanBan is a compact and user-tailored personal-project-management tool, built in html + flask + Qwen API with Render. 
 
-It was first designed to boost efficiency for the developer's day job, who works in a private equity firm as an asso. 
+It was first designed to boost efficiency for the developer's day job, who works in a private equity firm as an analyst. 
 
 The main function includes the usual project tracking, a-bit-more advanced AI analysing (where LLM extracting and analysing key text info from files)... and more to come.
 
